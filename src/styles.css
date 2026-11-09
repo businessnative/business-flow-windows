@@ -159,7 +159,7 @@ input:focus, select:focus {
   background: rgba(246, 243, 236, 0.16);
   border-color: rgba(246, 243, 236, 0.48);
 }
-.row { display: flex; gap: 8px; align-items: center; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .grow { flex: 1; }
 
 .btn {
@@ -247,7 +247,12 @@ input:focus, select:focus {
   background: var(--fill);
 }
 .item p { margin: 0 0 6px; line-height: 1.45; }
+.item .reason { color: var(--error); font-size: 13px; }
 .item small { color: var(--text-48); font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em; }
+.item-actions { display: flex; flex-direction: column; gap: 6px; }
+.item-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.pill.bad { color: var(--bg); background: var(--error); border-color: transparent; }
+.pill.warn { color: var(--bg); background: var(--accent); border-color: transparent; }
 .empty { color: var(--text-64); }
 
 .banner {

@@ -1,5 +1,6 @@
 use crate::models::{HistoryItem, HistoryKind, HistoryRetention};
 use crate::util::{fold_diacritics, word_count};
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -25,7 +26,7 @@ impl HistoryLogic {
     pub fn stats(items: &[HistoryItem], now_ms: i64) -> HistoryStats {
         let total = items.iter().map(|i| i.word_count() as i64).sum();
         let week = items.iter().filter(|i| i.date_ms >= now_ms - 7 * 86_400_000).map(|i| i.word_count() as i64).sum();
-        let dictated: Vec<_> = items.iter().filter(|i| i.kind == HistoryKind::Dictation && i.duration_seconds > 1.0).collect();
+        let dictated: Vec<_> = items.iter().filter(|i| i.kind == HistoryKind::Dictation && i.duration_seconds > 1.0 && i.has_text()).collect();
         let words: i64 = dictated.iter().map(|i| word_count(&i.raw_text) as i64).sum();
         let secs: f64 = dictated.iter().map(|i| i.duration_seconds).sum();
         let wpm = if secs > 0.0 { ((words as f64) / (secs / 60.0)).round() as i64 } else { 0 };
@@ -42,6 +43,20 @@ impl HistoryLogic {
             day -= 86_400_000;
         }
         HistoryStats { total_words: total, week_words: week, average_wpm: wpm, streak_days: streak, sessions: items.len() as i64 }
+    }
+
+    /// Applies the retention window and a hard cap. The second value is audio file names to delete.
+    pub fn retain(items: &[HistoryItem], retention: HistoryRetention, now_ms: i64, cap: usize) -> (Vec<HistoryItem>, Vec<String>) {
+        let pruned = Self::prune(items, retention, now_ms);
+        let kept_ids: Vec<Uuid> = pruned.iter().map(|item| item.id).collect();
+        let mut drop_audio: Vec<String> = items
+            .iter()
+            .filter(|item| !kept_ids.contains(&item.id))
+            .filter_map(|item| item.audio_name.clone())
+            .collect();
+        let start = if cap == 0 { pruned.len() } else { pruned.len().saturating_sub(cap) };
+        drop_audio.extend(pruned[..start].iter().filter_map(|item| item.audio_name.clone()));
+        (pruned[start..].to_vec(), drop_audio)
     }
 }
 
@@ -65,7 +80,7 @@ impl HistorySearch {
             return items.to_vec();
         }
         items.iter().filter(|it| {
-            let hay = fold_diacritics(&format!("{} {} {}", it.text, it.raw_text, it.app_name));
+            let hay = fold_diacritics(&format!("{} {} {} {}", it.text, it.raw_text, it.app_name, it.reason));
             words.iter().all(|w| hay.contains(w))
         }).cloned().collect()
     }

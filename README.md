@@ -82,7 +82,7 @@ A kulcs ellenőrzése a szolgáltató modelllistáját kéri le. A diktálás sz
 - **Parancs:** a parancsbillentyű nyomva tartása közben mondd az utasítást. Ha van kijelölés, azt alakítja át; ha nincs, megírja a kért szöveget.
 - **Polírozás:** jelöld ki a szöveget, majd Ctrl+Shift+P (Macen a Beállításokban átállítható).
 - **Tisztítás ki:** csak a helyi magyar szabályok (vessző, kérdőjel, ékezet, lista, kimondott e-mail, önjavítás).
-- **Előzmény:** csak szöveg, csak ezen a gépen, törölhető. A Kezdőlap mutatja a szavakat, a heti szavakat, a percenkénti szószámot és a sorozatot.
+- **Előzmény:** csak szöveg, csak ezen a gépen, törölhető. A sikertelen, üres és megszakadt diktálás is megmarad az Előzményekben; kimásolható, és újrapróbálható (a hang csak a gépeden marad, amíg újra nem küldöd). A Kezdőlap mutatja a szavakat, a heti szavakat, a percenkénti szószámot és a sorozatot.
 - **Meeting:** Meetingek lap, titkos iCal-cím, majd `cd meetings && npm install`. A `bflow` parancs: `cd meetings && npm run build && npm link`. Részletek: `docs/MEETINGS.md`.
 - A felvétel legfeljebb 3 perc. A jelző a képernyő alján jelenik meg, és nem veszi el a fókuszt. Ha elfogy a keret, a sáv ezt írja: „Elfogyott az átírás kerete. Nézd meg az OpenAI vagy a Gemini számlázását.”
 

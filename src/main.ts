@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import "./styles.css";
 import { cleanupProviders, holdKeys, toggleCombos, transcriptionProviders } from "./catalog";
+import { presentHistory, type HistoryRow } from "./history-view";
 
 type Shortcut = { type: "hold"; keys: string[] } | { type: "combo"; keyCode: number; modifiers: string[] } | { type: "mouse"; button: number };
 
@@ -47,13 +48,7 @@ interface KeyInfo {
   keyPage: string;
 }
 
-interface HistoryItem {
-  id: string;
-  dateMs: number;
-  text: string;
-  appName: string;
-  durationSeconds: number;
-}
+type HistoryItem = HistoryRow;
 
 interface UiState {
   settings: Settings;
@@ -125,6 +120,7 @@ function render() {
   renderKeys();
   renderHistory();
   renderHub();
+  renderRecent();
   renderDictionary();
   renderSnippets();
   renderStyle();
@@ -286,35 +282,97 @@ function renderKeys() {
 }
 
 function renderHistory() {
-  const root = $("history-list");
+  renderRows("history-list", state.history, "history-status");
+}
+
+function renderRecent() {
+  renderRows("recent-list", state.history.slice(-5), "home-note");
+}
+
+function renderRows(rootId: string, items: HistoryItem[], statusId: string) {
+  const root = $(rootId);
   root.replaceChildren();
-  if (state.history.length === 0) {
+  if (items.length === 0) {
     const empty = document.createElement("p");
     empty.className = "empty";
     empty.textContent = "Még nincs diktálás. Tartsd lenyomva a billentyűt, és beszélj.";
     root.append(empty);
     return;
   }
-  for (const item of [...state.history].reverse()) {
+  for (const item of [...items].reverse()) {
+    const view = presentHistory(item);
     const row = document.createElement("article");
     row.className = "item";
     const body = document.createElement("div");
+    if (view.label) {
+      const head = document.createElement("p");
+      head.className = "item-head";
+      const pill = document.createElement("span");
+      pill.className = view.tone ? `pill ${view.tone}` : "pill";
+      pill.textContent = view.label;
+      head.append(pill);
+      body.append(head);
+    }
     const text = document.createElement("p");
-    text.textContent = item.text;
+    text.textContent = view.title;
+    body.append(text);
+    if (view.reason) {
+      const reason = document.createElement("p");
+      reason.className = "reason";
+      reason.textContent = view.reason;
+      body.append(reason);
+    }
     const meta = document.createElement("small");
     const when = new Date(item.dateMs);
-    meta.textContent = `${when.toLocaleString("hu-HU")} · ${item.appName || "ismeretlen"} · ${Math.max(1, Math.round(item.durationSeconds))} mp`;
-    body.append(text, meta);
-    const button = document.createElement("button");
-    button.className = "btn secondary";
-    button.type = "button";
-    button.textContent = "Beillesztés";
-    button.addEventListener("click", async () => {
-      await invoke("paste_history_item", { id: item.id });
-    });
-    row.append(body, button);
+    const kind = view.kind ? ` · ${view.kind}` : "";
+    meta.textContent = `${when.toLocaleString("hu-HU")} · ${item.appName || "ismeretlen"}${kind} · ${Math.max(1, Math.round(item.durationSeconds))} mp`;
+    body.append(meta);
+    const actions = document.createElement("div");
+    actions.className = "item-actions";
+    if (view.copy) {
+      const copy = document.createElement("button");
+      copy.className = view.tone === "bad" ? "btn" : "btn secondary";
+      copy.type = "button";
+      copy.textContent = "Másolás";
+      copy.addEventListener("click", () => void runHistory("copy_history_item", item.id, statusId, "A vágólapra másolva."));
+      actions.append(copy);
+    }
+    if (view.paste) {
+      const paste = document.createElement("button");
+      paste.className = "btn secondary";
+      paste.type = "button";
+      paste.textContent = "Beillesztés";
+      paste.addEventListener("click", () => void runHistory("paste_history_item", item.id, statusId, "Beillesztve."));
+      actions.append(paste);
+    }
+    if (view.retry) {
+      const retry = document.createElement("button");
+      retry.className = "btn secondary";
+      retry.type = "button";
+      retry.textContent = "Újra";
+      retry.addEventListener("click", () => void runHistory("retry_history_item", item.id, statusId, "Újra beillesztve."));
+      actions.append(retry);
+    }
+    row.append(body);
+    if (actions.childElementCount > 0) row.append(actions);
     root.append(row);
   }
+}
+
+async function runHistory(command: string, id: string, statusId: string, ok: string) {
+  const status = $(statusId);
+  try {
+    await invoke(command, { id });
+    status.classList.remove("bad");
+    status.textContent = ok;
+  } catch (err) {
+    status.classList.add("bad");
+    status.textContent = String(err);
+  }
+  state = await invoke<UiState>("get_state");
+  renderHistory();
+  renderRecent();
+  renderHub();
 }
 
 function setSwitch(button: HTMLButtonElement, on: boolean) {
@@ -421,6 +479,30 @@ function wire() {
     button.textContent = "Előzmények törlése";
     state = await invoke<UiState>("get_state");
     renderHistory();
+    renderRecent();
+    renderHub();
+  });
+  $("copy-last").addEventListener("click", async () => {
+    const status = $("history-status");
+    try {
+      await invoke("copy_last");
+      status.classList.remove("bad");
+      status.textContent = "A vágólapra másolva.";
+    } catch (err) {
+      status.classList.add("bad");
+      status.textContent = String(err);
+    }
+  });
+  $("paste-last").addEventListener("click", async () => {
+    const status = $("history-status");
+    try {
+      await invoke("paste_last");
+      status.classList.remove("bad");
+      status.textContent = "Beillesztve.";
+    } catch (err) {
+      status.classList.add("bad");
+      status.textContent = String(err);
+    }
   });
   $("dict-add").addEventListener("click", () => {
     const term = $<HTMLInputElement>("dict-term").value.trim();
@@ -513,10 +595,15 @@ async function boot() {
   state = await invoke<UiState>("get_state");
   render();
   wire();
-  await listen<{ phase: string }>("dictation", async (event) => {
-    if (event.payload.phase === "done" || event.payload.phase === "idle") {
+  await listen<{ phase: string; message?: string; canCopy?: boolean }>("dictation", async (event) => {
+    if (event.payload.phase === "error" && event.payload.canCopy) {
+      $("home-note").textContent = "A szöveg megvan, a beillesztés nem sikerült. Az előzményekből másolhatod.";
+    }
+    if (event.payload.phase === "done" || event.payload.phase === "idle" || event.payload.phase === "error") {
       state = await invoke<UiState>("get_state");
       renderHistory();
+      renderRecent();
+      renderHub();
     }
   });
 }

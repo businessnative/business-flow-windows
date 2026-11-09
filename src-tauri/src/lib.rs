@@ -23,6 +23,7 @@ use tauri::{
 pub struct AppState {
     pub settings: Arc<Mutex<AppSettings>>,
     pub history: Arc<Mutex<Vec<bnflow_core::HistoryItem>>>,
+    pub last_text: Arc<Mutex<Option<String>>>,
     /// Extra sender so the dictation thread is not dropped when the hook reloads.
     #[allow(dead_code)]
     pub jobs: std::sync::mpsc::Sender<input::DictationJob>,
@@ -33,14 +34,16 @@ pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             let settings = Arc::new(Mutex::new(store::load_settings()));
-            let history = Arc::new(Mutex::new(store::load_history()));
+            let retention = settings.lock().map(|guard| guard.retention).unwrap_or_default();
+            let history = Arc::new(Mutex::new(store::load_history_kept(retention)));
+            let last_text = Arc::new(Mutex::new(store::load_last_transcript()));
             if let Ok(guard) = settings.lock() {
                 let _ = autostart::set_launch_at_login(guard.launch_at_login);
             }
-            let jobs = Engine::spawn(app.handle().clone(), settings.clone(), history.clone());
+            let jobs = Engine::spawn(app.handle().clone(), settings.clone(), history.clone(), last_text.clone());
             let shortcuts = settings.lock().map(|s| s.shortcuts.clone()).unwrap_or_default();
             let hook = input::spawn(shortcuts, jobs.clone());
-            app.manage(AppState { settings: settings.clone(), history, jobs, hook });
+            app.manage(AppState { settings: settings.clone(), history, last_text, jobs, hook });
             meetings_run::spawn_loop(settings);
 
             let overlay = WebviewWindowBuilder::new(app, "overlay", WebviewUrl::App("overlay.html".into()))
@@ -99,6 +102,10 @@ pub fn run() {
             commands::test_api_key,
             commands::clear_history,
             commands::paste_history_item,
+            commands::copy_history_item,
+            commands::paste_last,
+            commands::copy_last,
+            commands::retry_history_item,
             commands::toggle_dictation,
             commands::set_named_secret,
             commands::preview_meetings,

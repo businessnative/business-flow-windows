@@ -224,15 +224,50 @@ impl Snippet {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum HistoryKind {
+    #[default]
     Dictation,
     Command,
     Polish,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// Outcome of one dictation attempt. Old history files without this field load as success.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum HistoryStatus {
+    #[default]
+    Success,
+    Failed,
+    Empty,
+    Interrupted,
+    PasteFailed,
+}
+
+impl HistoryStatus {
+    pub fn token(self) -> &'static str {
+        match self {
+            Self::Success => "success",
+            Self::Failed => "failed",
+            Self::Empty => "empty",
+            Self::Interrupted => "interrupted",
+            Self::PasteFailed => "pasteFailed",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Success => "",
+            Self::Failed => "Sikertelen",
+            Self::Empty => "Üres",
+            Self::Interrupted => "Megszakadt",
+            Self::PasteFailed => "Nincs beillesztve",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct HistoryItem {
     pub id: Uuid,
@@ -241,12 +276,16 @@ pub struct HistoryItem {
     pub raw_text: String,
     pub app_name: String,
     pub duration_seconds: f64,
-    #[serde(default = "default_history_kind")]
+    #[serde(default)]
     pub kind: HistoryKind,
-}
-
-fn default_history_kind() -> HistoryKind {
-    HistoryKind::Dictation
+    #[serde(default)]
+    pub status: HistoryStatus,
+    /// Short Hungarian explanation when the attempt did not fully succeed.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub reason: String,
+    /// File name inside the local dictation-audio folder. Never a path and never a secret.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audio_name: Option<String>,
 }
 
 impl HistoryItem {
@@ -254,10 +293,24 @@ impl HistoryItem {
         Self::with_kind(text, raw_text, app_name, duration_seconds, HistoryKind::Dictation)
     }
     pub fn with_kind(text: String, raw_text: String, app_name: String, duration_seconds: f64, kind: HistoryKind) -> Self {
-        Self { id: Uuid::new_v4(), date_ms: chrono_now_ms(), text, raw_text, app_name, duration_seconds, kind }
+        Self {
+            id: Uuid::new_v4(),
+            date_ms: chrono_now_ms(),
+            text,
+            raw_text,
+            app_name,
+            duration_seconds,
+            kind,
+            status: HistoryStatus::Success,
+            reason: String::new(),
+            audio_name: None,
+        }
     }
     pub fn word_count(&self) -> usize {
         crate::util::word_count(&self.text)
+    }
+    pub fn has_text(&self) -> bool {
+        !self.text.trim().is_empty()
     }
 }
 

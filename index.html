@@ -42,6 +42,8 @@
           <h1>Kezdőlap</h1>
           <p class="lead" id="onboarding-line">Első lépések</p>
           <div class="grid" id="stats"></div>
+          <p class="kicker">Legutóbbi</p>
+          <div class="history" id="recent-list"></div>
           <div class="card">
             <p>Diktálás: tartsd a jobb Ctrl-t (Macen az fn-t). Parancs: jobb Ctrl + Shift, és mondd az utasítást. Polírozás: Ctrl+Shift+P a kijelölésen. Az utolsó szöveg: Ctrl+Shift+V.</p>
             <p class="status" id="home-note"></p>
@@ -174,17 +176,19 @@
         <section class="view" id="history">
           <p class="kicker">Csak ezen a gépen</p>
           <h1>Előzmények</h1>
-          <p class="lead">A diktált szöveg helyben marad. Kikapcsolható, és egy mozdulattal törölhető.</p>
+          <p class="lead">A sikeres, az üres, a sikertelen és a megszakadt diktálás is itt marad. Ha a beillesztés nem sikerült, a szöveg másolható. Ha az átírás hiba miatt állt meg, a hang a gépen marad, és innen újrapróbálható.</p>
           <div class="card">
             <div class="toggle">
               <div>
                 <strong>Előzmények mentése</strong>
-                <p>Ha ki van kapcsolva, az új diktálások nem kerülnek ide. A hangfelvétel soha nem marad meg.</p>
+                <p>Ha ki van kapcsolva, az új diktálások nem kerülnek a listára. A sikeres szöveg hangja nem marad meg. Ha az átírás nem készül el, a hang a gépen marad, és innen újrapróbálható.</p>
               </div>
               <button class="switch" id="history-on" type="button" role="switch" aria-checked="true"><i></i></button>
             </div>
             <div class="row">
               <button class="btn secondary" id="save-history" type="button">Mentés</button>
+              <button class="btn secondary" id="copy-last" type="button">Utolsó szöveg másolása</button>
+              <button class="btn secondary" id="paste-last" type="button">Utolsó szöveg beillesztése</button>
               <button class="btn danger" id="clear-history" type="button">Előzmények törlése</button>
               <span class="status" id="history-status" role="status"></span>
             </div>

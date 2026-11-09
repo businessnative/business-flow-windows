@@ -2,11 +2,11 @@ use crate::audio_in::list_mics;
 use crate::meetings_run;
 use crate::autostart::set_launch_at_login;
 use crate::input::{DictationJob, HookCmd};
-use crate::paste::paste_text;
+use crate::paste::{copy_text, paste_text};
 use crate::secrets::{self, KeyInfo};
 use crate::store;
 use crate::AppState;
-use bnflow_core::{AIRouter, AppSettings, HistoryItem};
+use bnflow_core::{AIRouter, AppSettings, HistoryItem, Recovery};
 use crate::http_client::Net;
 use serde::Serialize;
 use std::sync::mpsc::Sender;
@@ -117,7 +117,7 @@ pub fn polish_now(state: tauri::State<AppState>) -> Result<(), String> {
 pub fn learn_correction(state: tauri::State<AppState>, later: String) -> Result<String, String> {
     let mut settings = state.settings.lock().map_err(|_| "A beállítás foglalt.".to_string())?;
     let history = state.history.lock().map_err(|_| "Az előzmény foglalt.".to_string())?;
-    let Some(last) = history.last() else { return Err("Még nincs diktálás, amit javítani lehetne.".into()) };
+    let Some(last) = history.iter().rev().find(|item| item.has_text()) else { return Err("Még nincs diktálás, amit javítani lehetne.".into()) };
     let Some((heard, term)) = bnflow_core::AutoLearn::correction(&last.text, &last.text, &later, &settings.dictionary) else {
         return Err("Egy szó eltérést várok a beillesztett mondathoz képest.".into());
     };
@@ -132,14 +132,50 @@ pub fn clear_history(state: tauri::State<AppState>) -> Result<(), String> {
     if let Ok(mut guard) = state.history.lock() {
         guard.clear();
     }
+    if let Ok(mut slot) = state.last_text.lock() {
+        *slot = None;
+    }
     Ok(())
 }
 
 #[tauri::command]
 pub fn paste_history_item(state: tauri::State<AppState>, id: String) -> Result<(), String> {
-    let text = state.history.lock().ok().and_then(|h| h.iter().find(|i| i.id.to_string() == id).map(|i| i.text.clone()));
+    paste_text(&history_text(&state, &id)?)
+}
+
+#[tauri::command]
+pub fn copy_history_item(state: tauri::State<AppState>, id: String) -> Result<(), String> {
+    copy_text(&history_text(&state, &id)?)
+}
+
+#[tauri::command]
+pub fn paste_last(state: tauri::State<AppState>) -> Result<(), String> {
+    paste_text(&reusable(&state)?)
+}
+
+#[tauri::command]
+pub fn copy_last(state: tauri::State<AppState>) -> Result<(), String> {
+    copy_text(&reusable(&state)?)
+}
+
+#[tauri::command]
+pub async fn retry_history_item(app: tauri::AppHandle, state: tauri::State<'_, AppState>, id: String) -> Result<(), String> {
+    crate::dictation::retry(app, state.history.clone(), state.settings.clone(), state.last_text.clone(), id).await
+}
+
+fn history_text(state: &AppState, id: &str) -> Result<String, String> {
+    let text = state.history.lock().ok().and_then(|items| items.iter().find(|item| item.id.to_string() == id).map(|item| item.text.clone()));
     let Some(text) = text else { return Err("Nincs ilyen előzmény.".into()) };
-    paste_text(&text)
+    if text.trim().is_empty() {
+        return Err("Ebben a sorban nincs szöveg.".into());
+    }
+    Ok(text)
+}
+
+fn reusable(state: &AppState) -> Result<String, String> {
+    let explicit = state.last_text.lock().ok().and_then(|slot| slot.clone());
+    let history = state.history.lock().map(|items| items.clone()).unwrap_or_default();
+    Recovery::reusable_text(explicit.as_deref(), &history).ok_or_else(|| "Még nincs diktált szöveg, amit elő lehetne venni.".to_string())
 }
 
 #[tauri::command]

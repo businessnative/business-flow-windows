@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Business Flow",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "identifier": "com.example.businessflow",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -30,7 +30,11 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["msi", "nsis", "dmg"],
+    "targets": [
+      "msi",
+      "nsis",
+      "dmg"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -39,10 +43,10 @@
       "icons/icon.ico"
     ],
     "publisher": "Business Native Community",
-    "copyright": "Copyright © Business Native community",
+    "copyright": "Copyright \u00a9 Business Native community",
     "category": "Productivity",
-    "shortDescription": "Diktálás saját API-kulccsal",
-    "longDescription": "Business Flow diktálás: nyomva tartott billentyű, beszéd, beillesztett szöveg. A kulcs csak ezen a gépen van.",
+    "shortDescription": "Dikt\u00e1l\u00e1s saj\u00e1t API-kulccsal",
+    "longDescription": "Business Flow dikt\u00e1l\u00e1s: nyomva tartott billenty\u0171, besz\u00e9d, beillesztett sz\u00f6veg. A kulcs csak ezen a g\u00e9pen van.",
     "windows": {
       "nsis": {
         "installMode": "currentUser"

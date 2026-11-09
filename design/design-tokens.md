@@ -16,7 +16,7 @@ Készült: 2026-10-28. Wispr kódot és assetet nem tartalmaz. A Wispr-ből csak
 | ~~Raveo Display 500~~ | csak `.cta-sales` és `.text-sales-card` | – | sablonbetű, a licence nincs igazolva, **nem használjuk** |
 
 - **Licenc:** a Geist és a Geist Mono SIL OFL 1.1 alatt jelenik meg (Vercel, github.com/vercel/geist-font), tehát bele lehet csomagolni a Mac appba. A betűket a hivatalos kiadásból vegyük, ne a site-ról. A site helyben szolgálja ki őket, nem a Google Fonts-ról: a `fonts.googleapis` csak preconnect, betűt nem tölt.
-- **Tartalék betűk:** SF Pro, illetve SF Mono (ugyanez a megoldás van az iOS-os Business Flow design tokenjeiben).
+- **Tartalék betűk:** SF Pro, illetve SF Mono (ugyanez a megoldás van a az iOS-os Business Flow design tokenjeiben fájlban).
 
 **Méretskála** (méret / sorköz / betűköz, px). Asztali értékek, zárójelben a kompakt, mobil értékek (`@media max-width:767px`, 8292. sor):
 - H4 32/36/−0,5 (28/32/−1)

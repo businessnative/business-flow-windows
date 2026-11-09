@@ -9,9 +9,9 @@ fn iso(s: &str) -> i64 {
 fn history_stats_and_prune_match_mac() {
     let now = 1_700_000_000_000i64;
     let items = vec![
-        HistoryItem { id: uuid::Uuid::nil(), date_ms: now, text: "egy kettő három".into(), raw_text: "egy kettő három".into(), app_name: "A".into(), duration_seconds: 3.0, kind: HistoryKind::Dictation },
-        HistoryItem { id: uuid::Uuid::nil(), date_ms: now - 86_400_000, text: "négy öt".into(), raw_text: "négy öt".into(), app_name: "A".into(), duration_seconds: 2.0, kind: HistoryKind::Dictation },
-        HistoryItem { id: uuid::Uuid::nil(), date_ms: now - 40 * 86_400_000, text: "régi".into(), raw_text: "régi".into(), app_name: "A".into(), duration_seconds: 0.0, kind: HistoryKind::Dictation },
+        HistoryItem { id: uuid::Uuid::nil(), date_ms: now, text: "egy kettő három".into(), raw_text: "egy kettő három".into(), app_name: "A".into(), duration_seconds: 3.0, kind: HistoryKind::Dictation, ..Default::default() },
+        HistoryItem { id: uuid::Uuid::nil(), date_ms: now - 86_400_000, text: "négy öt".into(), raw_text: "négy öt".into(), app_name: "A".into(), duration_seconds: 2.0, kind: HistoryKind::Dictation, ..Default::default() },
+        HistoryItem { id: uuid::Uuid::nil(), date_ms: now - 40 * 86_400_000, text: "régi".into(), raw_text: "régi".into(), app_name: "A".into(), duration_seconds: 0.0, kind: HistoryKind::Dictation, ..Default::default() },
     ];
     let st = HistoryLogic::stats(&items, now);
     assert_eq!(st.total_words, 6);

@@ -38,6 +38,14 @@ pub fn capture_selection() -> Option<String> {
     }
 }
 
+pub fn copy_text(text: &str) -> Result<(), String> {
+    if text.is_empty() {
+        return Err("Üres a szöveg.".into());
+    }
+    let mut clipboard = arboard::Clipboard::new().map_err(|_| "A vágólap nem elérhető.".to_string())?;
+    clipboard.set_text(text.to_string()).map_err(|_| "A vágólapra másolás nem sikerült.".to_string())
+}
+
 fn send_copy() -> Result<(), String> {
     use enigo::{Direction, Enigo, Key, Keyboard, Settings};
     let mut enigo = Enigo::new(&Settings::default()).map_err(|_| permission_message())?;

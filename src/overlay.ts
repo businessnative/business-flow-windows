@@ -9,14 +9,21 @@ for (let i = 0; i < 10; i += 1) {
   bars.append(document.createElement("i"));
 }
 
-type Payload = { phase: string; message: string; level: number };
+type Payload = { phase: string; message: string; level: number; canCopy?: boolean };
 
 void listen<Payload>("dictation", (event) => {
-  const { phase, message, level } = event.payload;
+  const { phase, message, level, canCopy } = event.payload;
   label.textContent = message || (phase === "recording" ? "Felvétel" : "");
   pill.classList.toggle("error", phase === "error");
   pill.classList.toggle("done", phase === "done");
   pill.classList.toggle("handsfree", phase === "handsfree");
+  const copy = document.getElementById("copy") as HTMLButtonElement;
+  copy.hidden = !canCopy;
+  copy.onclick = () => {
+    void invoke("copy_last").then(() => {
+      label.textContent = "A vágólapon van.";
+    });
+  };
   const stop = document.getElementById("stop") as HTMLButtonElement;
   stop.hidden = phase !== "handsfree" && phase !== "recording";
   stop.onclick = () => void invoke("toggle_dictation");

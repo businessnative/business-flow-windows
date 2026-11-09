@@ -1,0 +1,12 @@
+title = "Business Flow"
+
+[allowlist]
+paths = [
+  '''(^|/)target/''',
+  '''(^|/)node_modules/''',
+  '''(^|/)dist/''',
+  '''\.otf$''',
+  '''\.png$''',
+  '''\.ico$''',
+  '''\.icns$''',
+]

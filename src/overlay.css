@@ -1,0 +1,36 @@
+@font-face {
+  font-family: "Geist";
+  src: url("./fonts/Geist-Medium.otf") format("opentype");
+  font-weight: 500;
+  font-style: normal;
+}
+html, body { margin: 0; background: transparent; color: #f6f3ec; font-family: "Geist", sans-serif; }
+.pill {
+  height: 56px;
+  margin: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
+  background: #121212cc;
+  border: 1px solid rgba(246, 243, 236, 0.16);
+  border-radius: 8px;
+  box-shadow: 0 -1px 0 0 rgba(246, 243, 236, 0.16), 0 1px 0 0 rgba(246, 243, 236, 0.08);
+  backdrop-filter: blur(8px);
+}
+.bars { display: flex; align-items: center; gap: 2px; height: 18px; }
+.bars i {
+  width: 2px;
+  height: 4px;
+  border-radius: 1px;
+  background: #c0c0e7;
+  transform-origin: center;
+  transition: height 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.pill.error { border-color: #c94040; border-width: 1.5px; }
+.pill.error .bars i { background: #c94040; }
+.pill.done .bars i { background: #2ad87f; }
+.label { font-size: 13px; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (prefers-reduced-motion: reduce) {
+  .bars i { transition: none; }
+}

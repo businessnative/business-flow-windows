@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="hu">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Business Flow</title>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="rail">
+        <div class="brand">
+          <svg viewBox="0 0 15 13" aria-hidden="true">
+            <circle cx="1.4" cy="1.4" r="1.1"></circle>
+            <circle cx="1.4" cy="4.6" r="1.1"></circle>
+            <circle cx="1.4" cy="7.8" r="1.1"></circle>
+            <circle cx="1.4" cy="11" r="1.1"></circle>
+            <circle cx="5.4" cy="3" r="1.1"></circle>
+            <circle cx="5.4" cy="6.2" r="1.1"></circle>
+            <circle cx="5.4" cy="9.4" r="1.1"></circle>
+            <circle cx="9.4" cy="4.6" r="1.1"></circle>
+            <circle cx="9.4" cy="7.8" r="1.1"></circle>
+            <circle cx="13.4" cy="6.2" r="1.1"></circle>
+          </svg>
+          <div class="name">business <span>·</span> flow</div>
+        </div>
+        <nav class="nav" aria-label="Szakaszok">
+          <button type="button" data-view="dictate" aria-current="page">Diktálás</button>
+          <button type="button" data-view="providers">Szolgáltatók</button>
+          <button type="button" data-view="history">Előzmények</button>
+        </nav>
+        <p class="hint">A kulcs nem hagyja el a gépet, amíg te nem hívod a szolgáltatót.</p>
+      </aside>
+      <main class="main">
+        <section class="view active" id="dictate">
+          <p class="kicker">Diktálás</p>
+          <h1>Beszélsz. A kurzor mellé kerül.</h1>
+          <p class="lead">Tartsd lenyomva a billentyűt, mondd ki a mondatot, engedd el. A szöveg a fókuszban lévő mezőbe kerül. Nincs fiók, nincs közvetítő szerver.</p>
+          <div class="banner" id="intro">
+            <div>Először egy OpenAI- vagy Gemini-kulcs kell az átíráshoz. A Claude csak a már leírt szöveget tudja tisztítani.</div>
+            <button class="btn secondary" id="dismiss-intro" type="button">Értem</button>
+          </div>
+          <div class="card">
+            <div class="grid">
+              <label class="field"><span>Nyelv</span><select id="language"></select></label>
+              <label class="field"><span>Mikrofon</span><select id="mic"></select></label>
+              <label class="field"><span>Nyomva tartás</span><select id="hold"></select></label>
+              <label class="field"><span>Kapcsoló</span><select id="toggle"></select></label>
+            </div>
+            <div class="toggle">
+              <div>
+                <strong>Nyelvi modell tisztítsa a szöveget</strong>
+                <p>Kikapcsolva csak a helyi magyar szabályok futnak: vessző, ékezet, lista, önjavítás. Hálózat nélkül.</p>
+              </div>
+              <button class="switch" id="cleanup" type="button" role="switch" aria-checked="true"><i></i></button>
+            </div>
+            <div class="toggle">
+              <div>
+                <strong>Indítás bejelentkezéskor</strong>
+                <p>Alapból ki van kapcsolva. A tálcán akkor is elérhető marad, ha az ablakot bezárod.</p>
+              </div>
+              <button class="switch" id="login" type="button" role="switch" aria-checked="false"><i></i></button>
+            </div>
+            <div class="row">
+              <button class="btn" id="save-dictate" type="button">Mentés</button>
+              <button class="btn secondary" id="try-dictate" type="button">Diktálás most</button>
+              <span class="status" id="dictate-status" role="status"></span>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="providers">
+          <p class="kicker">Saját kulcs</p>
+          <h1>A te kulcsod, a te számlád.</h1>
+          <p class="lead note"><strong>Az átíráshoz OpenAI vagy Gemini kell.</strong> A Claude-nak nincs beszéd→szöveg szolgáltatása, ezért csak tisztításra választható. A kulcs a Windows Hitelesítőadat-kezelőjébe vagy a macOS Kulcskarikába kerül, nem egy fájlba és nem egy szerzői fiókba.</p>
+          <div class="card">
+            <div class="grid">
+              <label class="field"><span>Átírás szolgáltatója</span><select id="stt-provider"></select></label>
+              <label class="field"><span>Átíró modell</span><select id="stt-model"></select></label>
+              <label class="field"><span>Tisztítás szolgáltatója</span><select id="clean-provider"></select></label>
+              <label class="field"><span>Tisztító modell</span><select id="clean-model"></select></label>
+            </div>
+            <p class="status" id="model-note"></p>
+            <div class="row">
+              <button class="btn" id="save-models" type="button">Modellek mentése</button>
+            </div>
+          </div>
+          <div class="keys" id="keys"></div>
+        </section>
+
+        <section class="view" id="history">
+          <p class="kicker">Csak ezen a gépen</p>
+          <h1>Előzmények</h1>
+          <p class="lead">A diktált szöveg helyben marad. Kikapcsolható, és egy mozdulattal törölhető.</p>
+          <div class="card">
+            <div class="toggle">
+              <div>
+                <strong>Előzmények mentése</strong>
+                <p>Ha ki van kapcsolva, az új diktálások nem kerülnek ide. A hangfelvétel soha nem marad meg.</p>
+              </div>
+              <button class="switch" id="history-on" type="button" role="switch" aria-checked="true"><i></i></button>
+            </div>
+            <div class="row">
+              <button class="btn secondary" id="save-history" type="button">Mentés</button>
+              <button class="btn danger" id="clear-history" type="button">Előzmények törlése</button>
+              <span class="status" id="history-status" role="status"></span>
+            </div>
+          </div>
+          <div class="history" id="history-list"></div>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

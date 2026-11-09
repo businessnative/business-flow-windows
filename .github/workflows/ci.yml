@@ -26,6 +26,9 @@ jobs:
       - run: npm run typecheck
       - name: Rust tests
         run: cargo test -p bnflow-core
+      - name: Meeting CLI tests
+        working-directory: meetings
+        run: npm ci && npm test
 
   build-windows:
     name: Windows installers

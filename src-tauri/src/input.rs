@@ -1,3 +1,4 @@
+use bnflow_core::hotkey::DictationKind;
 use bnflow_core::{HotkeyAction, HotkeyEngine, ModifierKey, ShortcutSettings};
 #[cfg(any(windows, target_os = "macos"))]
 use rdev::Event;
@@ -13,10 +14,11 @@ pub enum HookCmd {
 }
 
 pub enum DictationJob {
-    Start { hands_free: bool },
+    Start { hands_free: bool, command: bool },
     Stop,
     Cancel,
     PasteLast,
+    Polish,
 }
 
 pub fn spawn(shortcuts: ShortcutSettings, jobs: Sender<DictationJob>) -> Sender<HookCmd> {
@@ -97,12 +99,13 @@ fn hook_loop(rx: Receiver<HookCmd>, shortcuts: ShortcutSettings, jobs: Sender<Di
 fn dispatch(jobs: &Sender<DictationJob>, actions: Vec<HotkeyAction>) {
     for action in actions {
         let job = match action {
-            HotkeyAction::Start { hands_free, .. } => Some(DictationJob::Start { hands_free }),
+            HotkeyAction::Start { hands_free, kind } => Some(DictationJob::Start { hands_free, command: kind == DictationKind::Command }),
             HotkeyAction::LockHandsFree => None,
             HotkeyAction::Stop => Some(DictationJob::Stop),
             HotkeyAction::Cancel => Some(DictationJob::Cancel),
             HotkeyAction::PasteLast => Some(DictationJob::PasteLast),
-            HotkeyAction::SwitchKind(_) | HotkeyAction::Polish => None,
+            HotkeyAction::Polish => Some(DictationJob::Polish),
+            HotkeyAction::SwitchKind(_) => None,
         };
         if let Some(job) = job {
             let _ = jobs.send(job);

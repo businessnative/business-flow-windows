@@ -1,6 +1,6 @@
 [package]
 name = "business-flow"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Business Flow — dictation-only desktop app (BYOK)"
 authors = ["Business Native Community"]
@@ -19,6 +19,8 @@ tauri-build = { version = "2", features = [] }
 async-trait = "0.1"
 arboard = "3"
 bnflow-core = { path = "../crates/bnflow-core" }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+chrono-tz = "0.10"
 cpal = "0.15"
 dirs = "6"
 enigo = "0.6"

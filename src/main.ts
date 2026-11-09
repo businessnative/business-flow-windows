@@ -28,7 +28,13 @@ interface Settings {
   geminiChatModel: string;
   anthropicChatModel: string;
   onboardingDone: boolean;
-  [key: string]: unknown;
+  dictionary: { id: string; term: string; heardAs: string[]; autoLearned: boolean }[];
+  snippets: { id: string; trigger: string; expansion: string }[];
+  styles: Record<string, string>;
+  meetingsEnabled: boolean;
+  meetingBotName: string;
+  defaultPolishId: string;
+  paidPrefetch: boolean;
 }
 
 interface KeyInfo {
@@ -54,8 +60,12 @@ interface UiState {
   keys: KeyInfo[];
   mics: string[];
   history: HistoryItem[];
+  stats: { totalWords: number; weekWords: number; averageWpm: number; streakDays: number; sessions: number };
+  onboardingDoneSteps: number;
+  onboardingTotal: number;
   platform: string;
   sttNote: string;
+  polishPresets: [string, string][];
 }
 
 let state: UiState;
@@ -105,6 +115,7 @@ function render() {
   fillSelect($("toggle"), toggleCombos.map((k) => ({ value: k.id, label: k.label })), currentToggle());
   setSwitch($("cleanup"), s.smartFormatting);
   setSwitch($("login"), s.launchAtLogin);
+  setSwitch($("prefetch"), s.paidPrefetch);
   setSwitch($("history-on"), s.historyEnabled);
   $("intro").hidden = s.onboardingDone;
 
@@ -113,6 +124,99 @@ function render() {
   renderModels();
   renderKeys();
   renderHistory();
+  renderHub();
+  renderDictionary();
+  renderSnippets();
+  renderStyle();
+  renderPolish();
+  setSwitch($("meet-on"), s.meetingsEnabled);
+  $<HTMLInputElement>("meet-name").value = s.meetingBotName || "Business Flow jegyzetelő";
+}
+
+function renderHub() {
+  $("onboarding-line").textContent = `Első lépések: ${state.onboardingDoneSteps} / ${state.onboardingTotal}`;
+  const stats = $("stats");
+  stats.replaceChildren();
+  for (const [label, value] of [
+    ["Szavak", String(state.stats.totalWords)],
+    ["Ezen a héten", String(state.stats.weekWords)],
+    ["Szó / perc", String(state.stats.averageWpm)],
+    ["Sorozat (nap)", String(state.stats.streakDays)],
+  ] as const) {
+    const card = document.createElement("article");
+    card.className = "card";
+    card.innerHTML = `<span class="eyebrow">${label}</span><h1>${value}</h1>`;
+    stats.append(card);
+  }
+}
+
+function renderDictionary() {
+  const root = $("dict-list");
+  root.replaceChildren();
+  for (const entry of state.settings.dictionary) {
+    const row = document.createElement("article");
+    row.className = "item";
+    const body = document.createElement("div");
+    body.textContent = `${entry.term}${entry.heardAs.length ? " · " + entry.heardAs.join(", ") : ""}`;
+    const button = document.createElement("button");
+    button.className = "btn secondary";
+    button.type = "button";
+    button.textContent = "Törlés";
+    button.addEventListener("click", () => {
+      state.settings.dictionary = state.settings.dictionary.filter((item) => item.id !== entry.id);
+      void save("learn-status");
+      renderDictionary();
+    });
+    row.append(body, button);
+    root.append(row);
+  }
+}
+
+function renderSnippets() {
+  const root = $("sn-list");
+  root.replaceChildren();
+  for (const snippet of state.settings.snippets) {
+    const row = document.createElement("article");
+    row.className = "item";
+    const body = document.createElement("div");
+    body.textContent = `${snippet.trigger} → ${snippet.expansion}`;
+    const button = document.createElement("button");
+    button.className = "btn secondary";
+    button.type = "button";
+    button.textContent = "Törlés";
+    button.addEventListener("click", () => {
+      state.settings.snippets = state.settings.snippets.filter((item) => item.id !== snippet.id);
+      void save("learn-status");
+      renderSnippets();
+    });
+    row.append(body, button);
+    root.append(row);
+  }
+}
+
+function renderStyle() {
+  const root = $("style-grid");
+  root.replaceChildren();
+  const tones = [
+    { value: "formal", label: "Formális" },
+    { value: "casual", label: "Laza" },
+    { value: "veryCasual", label: "Nagyon laza" },
+  ];
+  for (const [id, label] of [["personal", "Személyes"], ["work", "Munka"], ["email", "E-mail"], ["other", "Egyéb"]] as const) {
+    const field = document.createElement("label");
+    field.className = "field";
+    const span = document.createElement("span");
+    span.textContent = label;
+    const select = document.createElement("select");
+    select.dataset.styleFor = id;
+    fillSelect(select, tones, state.settings.styles[id] || "formal");
+    field.append(span, select);
+    root.append(field);
+  }
+}
+
+function renderPolish() {
+  fillSelect($("polish-preset"), state.polishPresets.map(([value, label]) => ({ value, label })), state.settings.defaultPolishId || "clean");
 }
 
 function renderModels() {
@@ -227,6 +331,7 @@ function readDictate() {
   state.settings.microphoneName = mic || null;
   state.settings.smartFormatting = readSwitch("cleanup");
   state.settings.launchAtLogin = readSwitch("login");
+  state.settings.paidPrefetch = readSwitch("prefetch");
   applyHotkeys();
 }
 
@@ -316,6 +421,85 @@ function wire() {
     button.textContent = "Előzmények törlése";
     state = await invoke<UiState>("get_state");
     renderHistory();
+  });
+  $("dict-add").addEventListener("click", () => {
+    const term = $<HTMLInputElement>("dict-term").value.trim();
+    const heard = $<HTMLInputElement>("dict-heard").value.split(",").map((part) => part.trim()).filter(Boolean);
+    if (!term) return;
+    state.settings.dictionary.unshift({ id: crypto.randomUUID(), term, heardAs: heard, autoLearned: false });
+    $<HTMLInputElement>("dict-term").value = "";
+    $<HTMLInputElement>("dict-heard").value = "";
+    void save("learn-status");
+    renderDictionary();
+  });
+  $("learn").addEventListener("click", async () => {
+    const status = $("learn-status");
+    try {
+      status.textContent = String(await invoke("learn_correction", { later: $<HTMLInputElement>("learn-later").value }));
+      status.classList.remove("bad");
+      state = await invoke<UiState>("get_state");
+      renderDictionary();
+    } catch (err) {
+      status.classList.add("bad");
+      status.textContent = String(err);
+    }
+  });
+  $("sn-add").addEventListener("click", () => {
+    const trigger = $<HTMLInputElement>("sn-trigger").value.trim();
+    const expansion = $<HTMLInputElement>("sn-expansion").value.trim();
+    if (!trigger || !expansion) return;
+    state.settings.snippets.unshift({ id: crypto.randomUUID(), trigger, expansion });
+    void save("learn-status");
+    renderSnippets();
+  });
+  $("save-style").addEventListener("click", () => {
+    document.querySelectorAll<HTMLSelectElement>("[data-style-for]").forEach((select) => {
+      const key = select.dataset.styleFor || "other";
+      state.settings.styles[key] = select.value;
+    });
+    void save("learn-status");
+  });
+  $("polish-save").addEventListener("click", () => {
+    state.settings.defaultPolishId = $<HTMLSelectElement>("polish-preset").value;
+    void save("learn-status");
+  });
+  $("polish-now").addEventListener("click", () => void invoke("polish_now"));
+  $("meet-save").addEventListener("click", async () => {
+    state.settings.meetingsEnabled = readSwitch("meet-on");
+    state.settings.meetingBotName = $<HTMLInputElement>("meet-name").value.trim() || "Business Flow jegyzetelő";
+    await save("meet-status");
+    const ical = $<HTMLInputElement>("meet-ical").value.trim();
+    if (ical) await invoke("set_named_secret", { name: "ical-url", value: ical });
+  });
+  $("meet-preview").addEventListener("click", async () => {
+    const list = await invoke<{ title: string; start: number; platform: string; skipped: boolean }[]>("preview_meetings");
+    const root = $("meet-list");
+    root.replaceChildren();
+    for (const item of list) {
+      const row = document.createElement("article");
+      row.className = "item";
+      row.textContent = `${new Date(item.start * 1000).toLocaleString("hu-HU")} · ${item.title} · ${item.platform}${item.skipped ? " · kihagyva" : ""}`;
+      root.append(row);
+    }
+    const notes = await invoke<{ id: string; title: string; hasSummary: boolean }[]>("list_meeting_notes");
+    const notesRoot = $("note-list");
+    notesRoot.replaceChildren();
+    for (const note of notes) {
+      const row = document.createElement("article");
+      row.className = "item";
+      row.textContent = `${note.title}${note.hasSummary ? " · összefoglaló" : ""}`;
+      notesRoot.append(row);
+    }
+  });
+  $("meet-join").addEventListener("click", async () => {
+    const status = $("meet-status");
+    try {
+      status.textContent = String(await invoke("request_meeting_join", { url: $<HTMLInputElement>("meet-url").value, title: "" }));
+      status.classList.remove("bad");
+    } catch (err) {
+      status.classList.add("bad");
+      status.textContent = String(err);
+    }
   });
   $("dismiss-intro").addEventListener("click", () => {
     state.settings.onboardingDone = true;

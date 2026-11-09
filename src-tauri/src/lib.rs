@@ -6,6 +6,7 @@ mod foreground;
 mod http_client;
 mod identity;
 mod input;
+mod meetings_run;
 mod paste;
 mod secrets;
 mod store;
@@ -39,7 +40,8 @@ pub fn run() {
             let jobs = Engine::spawn(app.handle().clone(), settings.clone(), history.clone());
             let shortcuts = settings.lock().map(|s| s.shortcuts.clone()).unwrap_or_default();
             let hook = input::spawn(shortcuts, jobs.clone());
-            app.manage(AppState { settings, history, jobs, hook });
+            app.manage(AppState { settings: settings.clone(), history, jobs, hook });
+            meetings_run::spawn_loop(settings);
 
             let overlay = WebviewWindowBuilder::new(app, "overlay", WebviewUrl::App("overlay.html".into()))
                 .title("Business Flow")
@@ -98,6 +100,12 @@ pub fn run() {
             commands::clear_history,
             commands::paste_history_item,
             commands::toggle_dictation,
+            commands::set_named_secret,
+            commands::preview_meetings,
+            commands::list_meeting_notes,
+            commands::request_meeting_join,
+            commands::polish_now,
+            commands::learn_correction,
         ])
         .run(tauri::generate_context!())
         .expect("Business Flow failed to start");

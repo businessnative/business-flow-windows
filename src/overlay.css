@@ -30,7 +30,9 @@ html, body { margin: 0; background: transparent; color: #f6f3ec; font-family: "G
 .pill.error { border-color: #c94040; border-width: 1.5px; }
 .pill.error .bars i { background: #c94040; }
 .pill.done .bars i { background: #2ad87f; }
-.label { font-size: 13px; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.label { font-size: 13px; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+button { border: 0; border-radius: 4px; background: #f6f3ec; color: #0a0a0b; font: inherit; font-size: 12px; padding: 4px 8px; cursor: pointer; }
+.pill.handsfree { border-color: #c0c0e7; }
 @media (prefers-reduced-motion: reduce) {
   .bars i { transition: none; }
 }

@@ -1,13 +1,13 @@
 use crate::audio_in::{self, AudioCmd};
 use crate::foreground::capture_context;
-use crate::http_client::Net;
+use crate::http_client::{self, Net};
 use crate::input::DictationJob;
-use crate::paste::paste_text;
+use crate::paste::{capture_selection, paste_text};
 use crate::secrets::load_keys;
 use crate::store;
 use async_trait::async_trait;
 use bnflow_core::audio::{analyze, clean_transcript, encode_wav, float_to_i16, is_silent, prepare, resample_mono_16k};
-use bnflow_core::{AIRouter, AppSettings, ChatProvider, DictationFormatter, FlowError, HistoryItem, ProviderKeys, TextPipeline};
+use bnflow_core::{AIRouter, AppSettings, ChatProvider, DictationFormatter, FlowError, HistoryItem, HistoryKind, Prompts, ProviderKeys, TextPipeline, WordDiff, POLISH_PRESETS};
 use serde::Serialize;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -45,6 +45,7 @@ impl Engine {
         let mut recording = false;
         let mut started = Instant::now();
         let mut hands_free = false;
+        let mut command = false;
         loop {
             let job = if recording {
                 match jobs.recv_timeout(Duration::from_millis(80)) {
@@ -60,31 +61,36 @@ impl Engine {
             };
             if recording {
                 let level = self.level.load(Ordering::Relaxed) as f32 / 1000.0;
-                emit(&app, "recording", if hands_free { "Kihangosítva — beszélsz" } else { "Felvétel" }, level);
+                let label = if command { "Parancs" } else if hands_free { "Kihangosítva — beszélsz" } else { "Felvétel" };
+                emit(&app, if hands_free { "handsfree" } else { "recording" }, label, level);
                 if started.elapsed() > Duration::from_secs(180) {
-                    self.finish(&app, true);
+                    let mode = command;
+                    command = false;
+                    self.finish(&app, true, mode);
                     recording = false;
                     continue;
                 }
             }
             let Some(job) = job else { continue };
             match job {
-                DictationJob::Start { hands_free: hf } => {
+                DictationJob::Start { hands_free: hf, command: is_command } => {
                     if recording {
                         continue;
                     }
                     if !load_keys().can_transcribe() {
                         emit(&app, "error", "Az átíráshoz OpenAI- vagy Gemini-kulcs kell. A Claude nem tud hangot szöveggé alakítani.", 0.0);
-                        hide_later(&app);
+                        hide_later(&app, 4000);
                         continue;
                     }
+                    http_client::warm_up();
                     let device = self.settings.lock().ok().and_then(|s| s.microphone_name.clone());
                     let _ = self.audio_tx.send(AudioCmd::Start { device });
                     recording = true;
                     hands_free = hf;
+                    command = is_command;
                     started = Instant::now();
                     show_overlay(&app);
-                    emit(&app, "recording", if hf { "Kihangosítva — beszélsz" } else { "Felvétel" }, 0.0);
+                    emit(&app, if hf { "handsfree" } else { "recording" }, if is_command { "Parancs — mondd az utasítást" } else if hf { "Kihangosítva — beszélsz" } else { "Felvétel" }, 0.0);
                 }
                 DictationJob::Stop => {
                     if recording {
@@ -94,7 +100,9 @@ impl Engine {
                             emit(&app, "idle", "", 0.0);
                             hide_overlay(&app);
                         } else {
-                            self.finish(&app, true);
+                            let mode = command;
+                            command = false;
+                            self.finish(&app, true, mode);
                             recording = false;
                         }
                     }
@@ -112,17 +120,32 @@ impl Engine {
                         let _ = paste_text(&text);
                     }
                 }
+                DictationJob::Polish => {
+                    let settings = self.settings.lock().map(|s| s.clone()).unwrap_or_default();
+                    let history = self.history.clone();
+                    let app = app.clone();
+                    show_overlay(&app);
+                    emit(&app, "processing", "Polírozás…", 0.0);
+                    std::thread::spawn(move || {
+                        let selection = capture_selection();
+                        tauri::async_runtime::spawn(async move {
+                            let message = polish_selection(selection, settings, history).await;
+                            emit(&app, &message.0, &message.1, 0.0);
+                            hide_later(&app, 4000);
+                        });
+                    });
+                }
             }
         }
     }
 
-    fn finish(&self, app: &AppHandle, process: bool) {
+    fn finish(&self, app: &AppHandle, process: bool, command: bool) {
         let _ = self.audio_tx.send(AudioCmd::Stop);
         let reply = match self.audio_rx.recv_timeout(Duration::from_secs(2)) {
             Ok(reply) => reply,
             Err(_) => {
                 emit(app, "error", "A felvétel leállítása nem sikerült.", 0.0);
-                hide_later(app);
+                hide_later(app, 2500);
                 return;
             }
         };
@@ -134,14 +157,14 @@ impl Engine {
         let history = self.history.clone();
         let app = app.clone();
         tauri::async_runtime::spawn(async move {
-            let message = process_audio(reply, settings, history).await;
+            let message = process_audio(reply, settings, history, command).await;
             emit(&app, &message.0, &message.1, 0.0);
-            hide_later(&app);
+            hide_later(&app, if message.0 == "error" { 4500 } else { 1600 });
         });
     }
 }
 
-async fn process_audio(reply: audio_in::AudioReply, settings: AppSettings, history: Arc<Mutex<Vec<HistoryItem>>>) -> (String, String) {
+async fn process_audio(reply: audio_in::AudioReply, settings: AppSettings, history: Arc<Mutex<Vec<HistoryItem>>>, command: bool) -> (String, String) {
     let mono = resample_mono_16k(&reply.samples, reply.channels, reply.rate);
     if mono.is_empty() {
         return ("error".into(), "Nem érkezett hang. Ellenőrizd a mikrofont és az engedélyt.".into());
@@ -168,13 +191,18 @@ async fn process_audio(reply: audio_in::AudioReply, settings: AppSettings, histo
         return ("error".into(), "Nem érkezett szöveg.".into());
     }
     let ctx = capture_context();
-    let chat: Option<RouterChat> = if settings.smart_formatting {
-        Some(RouterChat { settings: settings.clone(), keys: keys.clone() })
+    let selection = if command { capture_selection() } else { None };
+    let text = if command {
+        let chat = RouterChat { settings: settings.clone(), keys: keys.clone() };
+        match chat.complete(&Prompts::command(selection.is_some()), &Prompts::command_user(&raw, selection.as_deref()), None).await {
+            Ok(out) => Prompts::clean_output(&out),
+            Err(err) => return ("error".into(), err.message()),
+        }
     } else {
-        None
+        let chat: Option<RouterChat> = if settings.smart_formatting { Some(RouterChat { settings: settings.clone(), keys: keys.clone() }) } else { None };
+        DictationFormatter::format(&raw, &settings, &ctx, chat.as_ref().map(|c| c as &dyn ChatProvider)).await.text
     };
-    let formatted = DictationFormatter::format(&raw, &settings, &ctx, chat.as_ref().map(|c| c as &dyn ChatProvider)).await;
-    let mut text = formatted.text;
+    let mut text = text;
     if text.trim().is_empty() {
         return ("error".into(), "A szöveg üres lett a formázás után.".into());
     }
@@ -184,7 +212,7 @@ async fn process_audio(reply: audio_in::AudioReply, settings: AppSettings, histo
         }
     }
     if settings.history_enabled {
-        let mut item = HistoryItem::new(text.clone(), raw, ctx.app_name.clone(), stats.seconds);
+        let mut item = HistoryItem::with_kind(text.clone(), raw, ctx.app_name.clone(), stats.seconds, if command { HistoryKind::Command } else { HistoryKind::Dictation });
         if item.app_name.is_empty() {
             item.app_name = "Ismeretlen".into();
         }
@@ -228,10 +256,38 @@ fn hide_overlay(app: &AppHandle) {
     }
 }
 
-fn hide_later(app: &AppHandle) {
+async fn polish_selection(selection: Option<String>, settings: AppSettings, history: Arc<Mutex<Vec<HistoryItem>>>) -> (String, String) {
+    let Some(selection) = selection else {
+        return ("error".into(), "Nincs kijelölés. Jelöld ki a szöveget, majd nyomd meg a polírozás billentyűt.".into());
+    };
+    let keys = load_keys();
+    if keys.is_empty() {
+        return ("error".into(), "A polírozáshoz OpenAI, Claude vagy Gemini kulcs kell.".into());
+    }
+    let prompt = POLISH_PRESETS.iter().find(|p| p.0 == settings.default_polish_id).map(|p| p.2).unwrap_or(POLISH_PRESETS[0].2);
+    let chat = RouterChat { settings: settings.clone(), keys };
+    let out = match chat.complete(&Prompts::polish(prompt), &selection, None).await {
+        Ok(out) => Prompts::clean_output(&out),
+        Err(err) => return ("error".into(), err.message()),
+    };
+    let diff = WordDiff::diff(&selection, &out);
+    let changes = diff.iter().filter(|op| !matches!(op, bnflow_core::DiffOp::Same(_))).count();
+    if settings.history_enabled {
+        if let Ok(mut guard) = history.lock() {
+            guard.push(HistoryItem::with_kind(out.clone(), selection.clone(), "Polírozás".into(), 0.0, HistoryKind::Polish));
+            let _ = store::save_history(&guard);
+        }
+    }
+    match paste_text(&out) {
+        Ok(()) => ("done".into(), format!("Kész · {changes} változás")),
+        Err(err) => ("error".into(), err),
+    }
+}
+
+fn hide_later(app: &AppHandle, ms: u64) {
     let app = app.clone();
     std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(1400));
+        std::thread::sleep(Duration::from_millis(ms));
         hide_overlay(&app);
         emit(&app, "idle", "", 0.0);
     });

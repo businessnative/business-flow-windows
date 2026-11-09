@@ -163,9 +163,9 @@ impl ShortcutSettings {
         Self {
             push_to_talk: vec![ShortcutTrigger::hold(&[ModifierKey::RightControl])],
             hands_free: vec![ShortcutTrigger::combo(49, &[ModifierClass::Control])],
-            command: vec![],
+            command: vec![ShortcutTrigger::hold(&[ModifierKey::RightControl, ModifierKey::LeftShift])],
             paste_last: vec![ShortcutTrigger::combo(9, &[ModifierClass::Control, ModifierClass::Shift])],
-            polish: vec![],
+            polish: vec![ShortcutTrigger::combo(35, &[ModifierClass::Control, ModifierClass::Shift])],
         }
     }
 }
@@ -241,18 +241,23 @@ pub struct HistoryItem {
     pub raw_text: String,
     pub app_name: String,
     pub duration_seconds: f64,
+    #[serde(default = "default_history_kind")]
+    pub kind: HistoryKind,
+}
+
+fn default_history_kind() -> HistoryKind {
+    HistoryKind::Dictation
 }
 
 impl HistoryItem {
     pub fn new(text: String, raw_text: String, app_name: String, duration_seconds: f64) -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            date_ms: chrono_now_ms(),
-            text,
-            raw_text,
-            app_name,
-            duration_seconds,
-        }
+        Self::with_kind(text, raw_text, app_name, duration_seconds, HistoryKind::Dictation)
+    }
+    pub fn with_kind(text: String, raw_text: String, app_name: String, duration_seconds: f64, kind: HistoryKind) -> Self {
+        Self { id: Uuid::new_v4(), date_ms: chrono_now_ms(), text, raw_text, app_name, duration_seconds, kind }
+    }
+    pub fn word_count(&self) -> usize {
+        crate::util::word_count(&self.text)
     }
 }
 
@@ -412,6 +417,48 @@ pub struct AppSettings {
     pub context_awareness: bool,
     pub llm_timeout_seconds: f64,
     pub onboarding_done: bool,
+    pub retention: HistoryRetention,
+    pub auto_learn: bool,
+    pub paid_prefetch: bool,
+    pub meetings_enabled: bool,
+    pub meeting_bot_name: String,
+    pub skipped_meetings: Vec<String>,
+    pub hide_bar_when_idle: bool,
+    pub default_polish_id: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum HistoryRetention {
+    Forever,
+    Days30,
+    Days7,
+    Never,
+}
+
+impl Default for HistoryRetention {
+    fn default() -> Self {
+        Self::Forever
+    }
+}
+
+impl HistoryRetention {
+    pub fn max_age_secs(self) -> Option<i64> {
+        match self {
+            Self::Forever => None,
+            Self::Days30 => Some(30 * 86400),
+            Self::Days7 => Some(7 * 86400),
+            Self::Never => Some(0),
+        }
+    }
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Forever => "Mindig",
+            Self::Days30 => "30 nap",
+            Self::Days7 => "7 nap",
+            Self::Never => "Ne mentsen",
+        }
+    }
 }
 
 impl Default for AppSettings {
@@ -448,6 +495,14 @@ impl Default for AppSettings {
             context_awareness: true,
             llm_timeout_seconds: 8.0,
             onboarding_done: false,
+            retention: HistoryRetention::Forever,
+            auto_learn: true,
+            paid_prefetch: false,
+            meetings_enabled: false,
+            meeting_bot_name: "Business Flow jegyzetelő".into(),
+            skipped_meetings: vec![],
+            hide_bar_when_idle: false,
+            default_polish_id: "clean".into(),
         }
     }
 }

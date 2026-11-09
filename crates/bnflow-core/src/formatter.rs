@@ -25,7 +25,7 @@ impl FlowError {
         match self {
             Self::NoApiKey => "Nincs beállítva API-kulcs (OpenAI vagy Gemini kell az átíráshoz).".into(),
             Self::Unauthorized => "Az API-kulcs érvénytelen.".into(),
-            Self::Quota => "Elfogyott a kredit a szolgáltatónál — tölts fel, vagy válts szolgáltatót a Beállításokban.".into(),
+            Self::Quota => "Elfogyott az átírás kerete. Nézd meg az OpenAI vagy a Gemini számlázását.".into(),
             Self::RateLimit => "Túl sok kérés, próbáld újra pár másodperc múlva.".into(),
             Self::TooLarge => "A felvétel túl hosszú.".into(),
             Self::BadRequest(_) => "A szolgáltatás elutasította a kérést.".into(),

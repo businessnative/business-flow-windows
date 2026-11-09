@@ -30,6 +30,16 @@ impl HttpClient for Net {
     }
 }
 
+/// TLS handshake ahead of the upload. No API key is sent.
+pub fn warm_up() {
+    tauri::async_runtime::spawn(async {
+        let http = client();
+        let _ = http.head("https://api.openai.com/v1/").send().await;
+        let _ = http.head("https://generativelanguage.googleapis.com/").send().await;
+        let _ = http.head("https://api.anthropic.com/").send().await;
+    });
+}
+
 fn client() -> reqwest::Client {
     static CELL: OnceLock<reqwest::Client> = OnceLock::new();
     CELL.get_or_init(|| {

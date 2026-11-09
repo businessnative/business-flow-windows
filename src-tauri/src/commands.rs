@@ -1,4 +1,5 @@
 use crate::audio_in::list_mics;
+use crate::meetings_run;
 use crate::autostart::set_launch_at_login;
 use crate::input::{DictationJob, HookCmd};
 use crate::paste::paste_text;
@@ -17,21 +18,38 @@ pub struct UiState {
     pub keys: Vec<KeyInfo>,
     pub mics: Vec<String>,
     pub history: Vec<HistoryItem>,
+    pub stats: bnflow_core::HistoryStats,
+    pub onboarding_done_steps: usize,
+    pub onboarding_total: usize,
     pub platform: String,
     pub stt_note: String,
+    pub polish_presets: Vec<(String, String)>,
 }
 
 #[tauri::command]
 pub fn get_state(state: tauri::State<AppState>) -> UiState {
     let settings = state.settings.lock().map(|s| s.clone()).unwrap_or_default();
     let history = state.history.lock().map(|h| h.clone()).unwrap_or_default();
+    let stats = bnflow_core::HistoryLogic::stats(&history, now_ms());
+    let has_key = secrets::load_keys().can_transcribe();
+    let steps = bnflow_core::OnboardingState {
+        has_key,
+        microphone: !list_mics().is_empty(),
+        accessibility: cfg!(target_os = "windows"),
+        input_monitoring: true,
+        has_dictated: !history.is_empty(),
+    };
     UiState {
         settings,
         keys: secrets::describe_keys(),
         mics: list_mics(),
         history,
+        stats,
+        onboarding_done_steps: steps.done_count(),
+        onboarding_total: 5,
         platform: platform_name().into(),
         stt_note: "A Claude nem tud hangot szöveggé alakítani. Az átíráshoz OpenAI- vagy Gemini-kulcs kell.".into(),
+        polish_presets: bnflow_core::POLISH_PRESETS.iter().map(|p| (p.0.to_string(), p.1.to_string())).collect(),
     }
 }
 
@@ -70,6 +88,45 @@ pub async fn test_api_key(provider: String, key: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn set_named_secret(name: String, value: String) -> Result<(), String> {
+    secrets::set_named(&name, &value)
+}
+
+#[tauri::command]
+pub async fn preview_meetings(state: tauri::State<'_, AppState>) -> Result<Vec<meetings_run::Upcoming>, String> {
+    let settings = state.settings.lock().map(|s| s.clone()).unwrap_or_default();
+    meetings_run::upcoming(&settings).await
+}
+
+#[tauri::command]
+pub fn list_meeting_notes() -> Vec<meetings_run::NoteCard> {
+    meetings_run::list_notes()
+}
+
+#[tauri::command]
+pub fn request_meeting_join(url: String, title: String) -> Result<String, String> {
+    meetings_run::queue_join(&url, if title.trim().is_empty() { None } else { Some(title.trim()) })
+}
+
+#[tauri::command]
+pub fn polish_now(state: tauri::State<AppState>) -> Result<(), String> {
+    state.jobs.send(DictationJob::Polish).map_err(|_| "A polírozás nem indult el.".to_string())
+}
+
+#[tauri::command]
+pub fn learn_correction(state: tauri::State<AppState>, later: String) -> Result<String, String> {
+    let mut settings = state.settings.lock().map_err(|_| "A beállítás foglalt.".to_string())?;
+    let history = state.history.lock().map_err(|_| "Az előzmény foglalt.".to_string())?;
+    let Some(last) = history.last() else { return Err("Még nincs diktálás, amit javítani lehetne.".into()) };
+    let Some((heard, term)) = bnflow_core::AutoLearn::correction(&last.text, &last.text, &later, &settings.dictionary) else {
+        return Err("Egy szó eltérést várok a beillesztett mondathoz képest.".into());
+    };
+    bnflow_core::AutoLearn::learn(&heard, &term, &mut settings.dictionary);
+    store::save_settings(&settings)?;
+    Ok(format!("Szótárba: {heard} → {term}"))
+}
+
+#[tauri::command]
 pub fn clear_history(state: tauri::State<AppState>) -> Result<(), String> {
     store::clear_history()?;
     if let Ok(mut guard) = state.history.lock() {
@@ -93,6 +150,10 @@ pub fn toggle_dictation(state: tauri::State<AppState>) -> Result<(), String> {
 #[allow(dead_code)]
 pub fn jobs(state: &AppState) -> &Sender<DictationJob> {
     &state.jobs
+}
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0)
 }
 
 fn platform_name() -> &'static str {

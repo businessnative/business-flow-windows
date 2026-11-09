@@ -19,6 +19,35 @@ pub fn paste_text(text: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Copies the current selection without leaving it on the clipboard.
+/// Returns None when nothing new was copied (no selection, or the shortcut was ignored).
+pub fn capture_selection() -> Option<String> {
+    let mut clipboard = arboard::Clipboard::new().ok()?;
+    let previous = clipboard.get_text().ok();
+    send_copy().ok()?;
+    thread::sleep(Duration::from_millis(80));
+    let now = clipboard.get_text().ok();
+    if let Some(prev) = previous.clone() {
+        let _ = clipboard.set_text(prev);
+    }
+    let now = now?;
+    if previous.as_ref() == Some(&now) || now.trim().is_empty() {
+        None
+    } else {
+        Some(now)
+    }
+}
+
+fn send_copy() -> Result<(), String> {
+    use enigo::{Direction, Enigo, Key, Keyboard, Settings};
+    let mut enigo = Enigo::new(&Settings::default()).map_err(|_| permission_message())?;
+    let modifier = if cfg!(target_os = "macos") { Key::Meta } else { Key::Control };
+    enigo.key(modifier, Direction::Press).map_err(|_| permission_message())?;
+    enigo.key(Key::Unicode('c'), Direction::Click).map_err(|_| permission_message())?;
+    enigo.key(modifier, Direction::Release).map_err(|_| permission_message())?;
+    Ok(())
+}
+
 fn send_paste() -> Result<(), String> {
     use enigo::{Direction, Enigo, Key, Keyboard, Settings};
     let mut enigo = Enigo::new(&Settings::default()).map_err(|_| permission_message())?;

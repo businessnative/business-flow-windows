@@ -13,6 +13,26 @@ pub struct KeyInfo {
     pub key_page: String,
 }
 
+pub fn read_named(name: &str) -> Option<String> {
+    let entry = keyring::Entry::new(APP_ID, name).ok()?;
+    let value = entry.get_password().ok()?;
+    let value = value.trim().to_string();
+    if value.is_empty() { None } else { Some(value) }
+}
+
+pub fn set_named(name: &str, value: &str) -> Result<(), String> {
+    if name != "ical-url" {
+        return Err("Ismeretlen titok.".into());
+    }
+    let entry = keyring::Entry::new(APP_ID, name).map_err(store_err)?;
+    let value = value.trim();
+    if value.is_empty() {
+        let _ = entry.delete_credential();
+        return Ok(());
+    }
+    entry.set_password(value).map_err(store_err)
+}
+
 pub fn read_key(provider: AIProvider) -> Option<String> {
     if let Some(v) = keyring_get(provider) {
         return Some(v);

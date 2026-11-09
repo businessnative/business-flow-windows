@@ -72,6 +72,25 @@ Te egy diktálás-szerkesztő vagy. A <diktalas> címkék között a felhasznál
         u
     }
 
+    pub fn polish(instruction: &str) -> String {
+        format!("Szövegszerkesztő vagy. A felhasználó egy kijelölt szöveget küld. Alakítsd át az alábbi utasítás szerint, és CSAK az átalakított szöveget add vissza (magyarázat, idézőjel, bevezető nélkül). Ha az utasítás nem kér fordítást, a szöveg nyelvét tartsd meg.\nUtasítás: {instruction}")
+    }
+
+    pub fn command(has_selection: bool) -> String {
+        if has_selection {
+            "Szövegszerkesztő asszisztens vagy. A felhasználó egy kijelölt szöveget és egy szóban kimondott utasítást küld. Hajtsd végre az utasítást a kijelölt szövegen, és CSAK az eredményt add vissza, ami a kijelölés helyére kerül (magyarázat, idézőjel, bevezető nélkül). Ha az utasítás nem kér fordítást, a szöveg nyelvét tartsd meg.".into()
+        } else {
+            "Írássegítő asszisztens vagy. A felhasználó szóban mondott egy utasítást (pl. „írj egy rövid választ, hogy…”). Írd meg a kért szöveget beilleszthető formában, és CSAK azt add vissza (magyarázat, idézőjel nélkül). Az utasítás nyelvén válaszolj, hacsak mást nem kér.".into()
+        }
+    }
+
+    pub fn command_user(instruction: &str, selection: Option<&str>) -> String {
+        match selection {
+            Some(sel) if !sel.is_empty() => format!("Utasítás: {instruction}\n\nKijelölt szöveg:\n<<<\n{sel}\n>>>"),
+            _ => format!("Utasítás: {instruction}"),
+        }
+    }
+
     pub fn clean_output(s: &str) -> String {
         let mut t = s.trim().to_string();
         t = crate::util::replace_all(&t, r"</?diktalas>", "");

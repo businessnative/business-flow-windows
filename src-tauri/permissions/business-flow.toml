@@ -9,4 +9,10 @@ commands.allow = [
   "clear_history",
   "paste_history_item",
   "toggle_dictation",
+  "set_named_secret",
+  "preview_meetings",
+  "list_meeting_notes",
+  "request_meeting_join",
+  "polish_now",
+  "learn_correction",
 ]

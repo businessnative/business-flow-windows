@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import "./overlay.css";
 
@@ -15,6 +16,10 @@ void listen<Payload>("dictation", (event) => {
   label.textContent = message || (phase === "recording" ? "Felvétel" : "");
   pill.classList.toggle("error", phase === "error");
   pill.classList.toggle("done", phase === "done");
+  pill.classList.toggle("handsfree", phase === "handsfree");
+  const stop = document.getElementById("stop") as HTMLButtonElement;
+  stop.hidden = phase !== "handsfree" && phase !== "recording";
+  stop.onclick = () => void invoke("toggle_dictation");
   const nodes = bars.querySelectorAll("i");
   nodes.forEach((node, index) => {
     const wave = phase === "recording" ? 6 + Math.abs(Math.sin(index + level * 8)) * (8 + level * 14) : 4;

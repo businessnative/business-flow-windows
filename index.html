@@ -24,13 +24,29 @@
           <div class="name">business <span>·</span> flow</div>
         </div>
         <nav class="nav" aria-label="Szakaszok">
+          <button type="button" data-view="home">Kezdőlap</button>
           <button type="button" data-view="dictate" aria-current="page">Diktálás</button>
+          <button type="button" data-view="dictionary">Szótár</button>
+          <button type="button" data-view="snippets">Részletek</button>
+          <button type="button" data-view="style">Stílus</button>
+          <button type="button" data-view="polish">Polírozás</button>
+          <button type="button" data-view="meetings">Meetingek</button>
           <button type="button" data-view="providers">Szolgáltatók</button>
           <button type="button" data-view="history">Előzmények</button>
         </nav>
         <p class="hint">A kulcs nem hagyja el a gépet, amíg te nem hívod a szolgáltatót.</p>
       </aside>
       <main class="main">
+        <section class="view" id="home">
+          <p class="kicker">Hub</p>
+          <h1>Kezdőlap</h1>
+          <p class="lead" id="onboarding-line">Első lépések</p>
+          <div class="grid" id="stats"></div>
+          <div class="card">
+            <p>Diktálás: tartsd a jobb Ctrl-t (Macen az fn-t). Parancs: jobb Ctrl + Shift, és mondd az utasítást. Polírozás: Ctrl+Shift+P a kijelölésen. Az utolsó szöveg: Ctrl+Shift+V.</p>
+            <p class="status" id="home-note"></p>
+          </div>
+        </section>
         <section class="view active" id="dictate">
           <p class="kicker">Diktálás</p>
           <h1>Beszélsz. A kurzor mellé kerül.</h1>
@@ -60,6 +76,13 @@
               </div>
               <button class="switch" id="login" type="button" role="switch" aria-checked="false"><i></i></button>
             </div>
+            <div class="toggle">
+              <div>
+                <strong>Fizetős előretöltés</strong>
+                <p>Alapból ki. Bekapcsolva a Mac app a szünet alatt is elküldheti a hangot, és a megszakított kérés is számlázódhat. Ez a kiadás a hangot helyben készíti elő, és csak a felengedéskor hívja az átírást.</p>
+              </div>
+              <button class="switch" id="prefetch" type="button" role="switch" aria-checked="false"><i></i></button>
+            </div>
             <div class="row">
               <button class="btn" id="save-dictate" type="button">Mentés</button>
               <button class="btn secondary" id="try-dictate" type="button">Diktálás most</button>
@@ -68,6 +91,67 @@
           </div>
         </section>
 
+        <section class="view" id="dictionary">
+          <p class="kicker">Helyes írás</p>
+          <h1>Szótár</h1>
+          <p class="lead">A felismert alak helyett a te írásmódod kerül a szövegbe, toldalékkal együtt.</p>
+          <div class="card">
+            <div class="grid">
+              <label class="field"><span>Helyes alak</span><input id="dict-term" type="text" /></label>
+              <label class="field"><span>Ahogy hallhatja</span><input id="dict-heard" type="text" placeholder="vesszővel elválasztva" /></label>
+            </div>
+            <div class="row"><button class="btn" id="dict-add" type="button">Hozzáadás</button></div>
+            <div id="dict-list" class="history"></div>
+            <label class="field"><span>Javított mondat az utolsó diktálásból</span><input id="learn-later" type="text" /></label>
+            <div class="row"><button class="btn secondary" id="learn" type="button">Szótárba a javításból</button><span class="status" id="learn-status"></span></div>
+          </div>
+        </section>
+        <section class="view" id="snippets">
+          <p class="kicker">Kimondott kulcs</p>
+          <h1>Szövegrészletek</h1>
+          <div class="card">
+            <div class="grid">
+              <label class="field"><span>Kulcsmondat</span><input id="sn-trigger" type="text" /></label>
+              <label class="field"><span>Beillesztett szöveg</span><input id="sn-expansion" type="text" /></label>
+            </div>
+            <div class="row"><button class="btn" id="sn-add" type="button">Mentés</button></div>
+            <div id="sn-list" class="history"></div>
+          </div>
+        </section>
+        <section class="view" id="style">
+          <p class="kicker">Hangnem</p>
+          <h1>Stílus alkalmazásonként</h1>
+          <div class="card grid" id="style-grid"></div>
+          <button class="btn" id="save-style" type="button">Stílus mentése</button>
+        </section>
+        <section class="view" id="polish">
+          <p class="kicker">Kijelölés</p>
+          <h1>Polírozás</h1>
+          <p class="lead">A kijelölt szöveget a választott utasítással írja át. Windowson és macOS-en a kijelölést Ctrl+C / Cmd+C olvassa, mert a mező tartalmát a rendszer nem adja át közvetlenül.</p>
+          <div class="card">
+            <label class="field"><span>Alapértelmezett utasítás</span><select id="polish-preset"></select></label>
+            <div class="row"><button class="btn" id="polish-save" type="button">Mentés</button><button class="btn secondary" id="polish-now" type="button">Kijelölés polírozása</button></div>
+          </div>
+        </section>
+        <section class="view" id="meetings">
+          <p class="kicker">Google Meet</p>
+          <h1>Meeting-jegyzetelő</h1>
+          <p class="lead">Vendégként csatlakozik Chrome-ban, a résztvevők hangját írja át a saját kulcsoddal, és a jegyzetet csak a gépedre menti. Kell hozzá Node.js, Google Chrome, és a meetings mappában egy `npm install`.</p>
+          <div class="card">
+            <div class="toggle"><div><strong>Automatikus csatlakozás</strong><p>Alapból ki. A titkos iCal-cím a kulcstartóba kerül, nem a beállításfájlba.</p></div><button class="switch" id="meet-on" type="button" role="switch" aria-checked="false"><i></i></button></div>
+            <label class="field"><span>A jegyzetelő neve</span><input id="meet-name" type="text" /></label>
+            <label class="field"><span>Titkos iCal-cím</span><input id="meet-ical" type="password" autocomplete="off" /></label>
+            <label class="field"><span>Meet link most</span><input id="meet-url" type="url" placeholder="https://meet.google.com/abc-defg-hij" /></label>
+            <div class="row">
+              <button class="btn" id="meet-save" type="button">Mentés</button>
+              <button class="btn secondary" id="meet-preview" type="button">Közelgő alkalmak</button>
+              <button class="btn secondary" id="meet-join" type="button">Csatlakozás</button>
+            </div>
+            <p class="status" id="meet-status"></p>
+            <div id="meet-list" class="history"></div>
+            <div id="note-list" class="history"></div>
+          </div>
+        </section>
         <section class="view" id="providers">
           <p class="kicker">Saját kulcs</p>
           <h1>A te kulcsod, a te számlád.</h1>

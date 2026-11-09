@@ -1,6 +1,7 @@
 /target
 /dist
-/node_modules
+node_modules/
+meetings/dist/
 src-tauri/target
 src-tauri/gen
 .env
